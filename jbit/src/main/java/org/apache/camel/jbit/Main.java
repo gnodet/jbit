@@ -18,8 +18,10 @@ package org.apache.camel.jbit;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,6 +29,8 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
 
 import org.apache.camel.jbit.translate.Translator;
 
@@ -40,27 +44,45 @@ public class Main {
 
         Path inputPath = Paths.get(args[0]);
         Path outputPath = Paths.get(args[1]);
+        if (inputPath.equals(outputPath)) {
+            Path org = Paths.get(inputPath.toString().replace(".jar", "-org.jar"));
+            Files.move(inputPath, org);
+            inputPath = org;
+        }
         try (JarInputStream in = new JarInputStream(new BufferedInputStream(Files.newInputStream(inputPath)))) {
             Manifest man = in.getManifest();
             try (JarOutputStream out = new JarOutputStream(new BufferedOutputStream(Files.newOutputStream(outputPath)), man)) {
+                out.setLevel(Deflater.BEST_COMPRESSION);
                 JarEntry entry;
                 while ((entry = in.getNextJarEntry()) != null) {
                     String name = entry.getName();
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    copy(in, baos);
+                    byte[] data = baos.toByteArray();
                     if (name.endsWith(".class")) {
-                        byte[] data = Translator.transform(in);
-                        entry.setSize(data.length);
-                        entry.setCompressedSize(-1);
-                        out.putNextEntry(entry);
-                        out.write(data);
-                        out.closeEntry();
-                    } else {
-                        out.putNextEntry(entry);
-                        in.transferTo(out);
-                        out.closeEntry();
+                        data = Translator.transform(data);
                     }
+                    entry.setMethod(ZipEntry.DEFLATED);
+                    entry.setSize(data.length);
+                    entry.setCompressedSize(-1);
+                    out.putNextEntry(entry);
+                    out.write(data);
+                    out.closeEntry();
                 }
                 addLoadedClass(out, org.apache.camel.jbit.runtime.Runtime.class);
+                addLoadedClass(out, org.apache.camel.jbit.runtime.Collections.class);
+                addLoadedClass(out, org.apache.camel.jbit.runtime.StringConcatFactory.class);
+                addLoadedClass(out, org.apache.camel.jbit.runtime.StringConcatFactory.StringConcatException.class);
+                addLoadedClass(out, org.apache.camel.jbit.runtime.StringConcatFactory.RecipeElement.class);
             }
+        }
+    }
+
+    private static void copy(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = in.read(buffer, 0, buffer.length)) >= 0) {
+            out.write(buffer, 0, read);
         }
     }
 

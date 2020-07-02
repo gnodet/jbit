@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.apache.camel.jbit.runtime.Runtime;
 import org.apache.camel.jbit.runtime.Substitute;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
@@ -54,7 +53,7 @@ public class Substitution {
         this.newDescriptor = newDescriptor;
     }
 
-    public static List<Substitution> findSubstitutions(Iterable<Class<?>> supportClasses) {
+    public static List<Substitution> findSubstitutions(Class<?>... supportClasses) {
         List<Substitution> substitutions = new ArrayList<>();
         for (Class<?> supportClass : supportClasses) {
             URL res = supportClass.getClassLoader().getResource(supportClass.getName().replace('.', '/') + ".class");
@@ -85,7 +84,7 @@ public class Substitution {
                                     String name = (String) values.get("method");
                                     boolean isStatic = (Boolean) values.getOrDefault("isStatic", Boolean.FALSE);
                                     String descriptor = isStatic ? methodDescriptor : methodDescriptor.replace("(L" + owner + ";", "(");
-                                    String newOwner = Runtime.class.getName().replace('.', '/');
+                                    String newOwner = supportClass.getName().replace('.', '/');
                                     String newName = methodName;
                                     String newDescriptor = methodDescriptor;
                                     substitutions.add(new Substitution(owner, name, descriptor, newOwner, newName, newDescriptor));

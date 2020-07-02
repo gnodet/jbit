@@ -7,18 +7,13 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>example</artifactId>
+    <artifactId>agent</artifactId>
 
     <dependencies>
         <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm-tree</artifactId>
-            <version>8.0.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm-util</artifactId>
-            <version>8.0.1</version>
+            <groupId>org.apache.camel.jbit</groupId>
+            <artifactId>jbit</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 
@@ -29,10 +24,23 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
                 <configuration>
-                    <release>14</release>
+                    <release>8</release>
                 </configuration>
             </plugin>
 
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Premain-Class>org.apache.camel.jbit.agent.Agent</Premain-Class>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <!--
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -40,7 +48,7 @@
                 <executions>
                     <execution>
                         <id>translate</id>
-                        <phase>verify</phase>
+                        <phase>package</phase>
                         <goals>
                             <goal>java</goal>
                         </goals>
@@ -52,7 +60,7 @@
                     <mainClass>org.apache.camel.jbit.Main</mainClass>
                     <arguments>
                         <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
-                        <argument>${project.build.directory}/${project.build.finalName}-jdk8.jar</argument>
+                        <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
                     </arguments>
                 </configuration>
                 <dependencies>
@@ -63,29 +71,32 @@
                     </dependency>
                 </dependencies>
             </plugin>
+            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.1.2</version>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.3</version>
                 <executions>
                     <execution>
-                        <id>copy-asm</id>
                         <phase>package</phase>
                         <goals>
-                            <goal>copy</goal>
+                            <goal>shade</goal>
                         </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>org.ow2.asm</groupId>
-                                    <artifactId>asm</artifactId>
-                                    <version>8.0.1</version>
-                                    <outputDirectory>${build.directory}/lib</outputDirectory>
-                                </artifactItem>
-                            </artifactItems>
-                        </configuration>
                     </execution>
                 </executions>
+                <configuration>
+                    <createSourcesJar>true</createSourcesJar>
+                    <shadedArtifactAttached>true</shadedArtifactAttached>
+                    <shadedClassifierName>shaded</shadedClassifierName>
+                    <createDependencyReducedPom>true</createDependencyReducedPom>
+                    <dependencyReducedPomLocation>${project.build.directory}/reduced-pom.xml</dependencyReducedPomLocation>
+                    <relocations>
+                        <relocation>
+                            <pattern>org.objectweb.asm</pattern>
+                            <shadedPattern>${project.groupId}.__shaded__.asm</shadedPattern>
+                        </relocation>
+                    </relocations>
+                </configuration>
             </plugin>
         </plugins>
     </build>

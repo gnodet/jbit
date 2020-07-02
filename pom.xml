@@ -8,6 +8,7 @@
 
     <modules>
         <module>jbit</module>
+        <module>agent</module>
         <module>example</module>
     </modules>
 

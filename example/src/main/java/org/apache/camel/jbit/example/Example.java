@@ -59,6 +59,7 @@ public class Example {
     }
 
     public static void main(String[] args) {
+        System.out.println("Running on " + System.getProperty("java.version"));
         Example x = new Example();
         System.out.println(x.testConcat1(TimeUnit.SECONDS));
         System.out.println(x.testConcat2(TimeUnit.SECONDS));
