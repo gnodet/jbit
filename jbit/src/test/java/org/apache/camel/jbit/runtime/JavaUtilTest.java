@@ -14,26 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.camel.jbit.agent;
+package org.apache.camel.jbit.runtime;
 
-import java.lang.instrument.ClassFileTransformer;
-import java.lang.instrument.IllegalClassFormatException;
-import java.lang.instrument.Instrumentation;
-import java.security.ProtectionDomain;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.apache.camel.jbit.translate.Translator;
+import org.junit.jupiter.api.Test;
 
+public class JavaUtilTest {
 
-public class Agent implements ClassFileTransformer {
-
-    public static void premain(String agentArgs, Instrumentation inst) {
-        inst.addTransformer(new Agent());
-    }
-
-    @Override
-    public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
-                            ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
-        return Translator.transform(classfileBuffer);
+    @Test
+    public void testMap() {
+        Map<String, Object> x = new HashMap<>();
+        Map<String, Object> m = JavaUtil.java_util_Map_of("key", "val");
+        x.putAll(m);
     }
 
 }

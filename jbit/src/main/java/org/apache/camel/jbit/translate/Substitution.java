@@ -53,7 +53,7 @@ public class Substitution {
         this.newDescriptor = newDescriptor;
     }
 
-    public static List<Substitution> findSubstitutions(Class<?>... supportClasses) {
+    public static List<Substitution> findSubstitutions(Iterable<Class<?>> supportClasses) {
         List<Substitution> substitutions = new ArrayList<>();
         for (Class<?> supportClass : supportClasses) {
             URL res = supportClass.getClassLoader().getResource(supportClass.getName().replace('.', '/') + ".class");

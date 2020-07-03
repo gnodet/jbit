@@ -232,7 +232,7 @@ public class StringConcatFactory {
         }
     }
 
-    public static final class RecipeElement {
+    static final class RecipeElement {
         private final String value;
         private final int argPos;
         private final char tag;

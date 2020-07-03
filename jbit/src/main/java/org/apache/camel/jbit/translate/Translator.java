@@ -19,9 +19,15 @@ package org.apache.camel.jbit.translate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.camel.jbit.runtime.JavaIo;
+import org.apache.camel.jbit.runtime.JavaLang;
+import org.apache.camel.jbit.runtime.JavaNio;
+import org.apache.camel.jbit.runtime.JavaUtil;
+import org.apache.camel.jbit.runtime.JavaUtilStream;
 import org.apache.camel.jbit.runtime.StringConcatFactory;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -32,10 +38,16 @@ import org.objectweb.asm.Opcodes;
 
 public class Translator {
 
-    private static final List<Substitution> SUBSTITUTIONS = Substitution.findSubstitutions(
-            org.apache.camel.jbit.runtime.Collections.class,
-            org.apache.camel.jbit.runtime.Runtime.class
+    public static final List<Class<?>> SUBSTITUTION_CLASSES = Arrays.asList(
+            JavaIo.class,
+            JavaLang.class,
+            JavaNio.class,
+            JavaUtil.class,
+            JavaUtilStream.class
     );
+    private static final List<Substitution> SUBSTITUTIONS = Substitution.findSubstitutions(SUBSTITUTION_CLASSES);
+    private static final String STRING_CONCAT_FACTORY = "java/lang/invoke/StringConcatFactory";
+    private static final String METHOD_HANDLES = "java/lang/invoke/MethodHandles";
 
     /**
      * Translates a JDK 11 or JDK 14 class into a JDK 8 compatible class
@@ -66,7 +78,7 @@ public class Translator {
             @Override
             public void visitInnerClass(String name, String outerName, String innerName, int access) {
                 super.visitInnerClass(name, outerName, innerName, access);
-                if (!"java/lang/invoke/MethodHandles".equals(outerName)) {
+                if (!METHOD_HANDLES.equals(outerName)) {
                     classes.add(name);
                 }
             }
@@ -96,7 +108,7 @@ public class Translator {
                     }
                     @Override
                     public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
-                        if ("java/lang/invoke/StringConcatFactory".equals(bootstrapMethodHandle.getOwner())) {
+                        if (STRING_CONCAT_FACTORY.equals(bootstrapMethodHandle.getOwner())) {
                             super.visitInvokeDynamicInsn(name, descriptor,
                                     new Handle(bootstrapMethodHandle.getTag(), StringConcatFactory.class.getName().replace('.', '/'),
                                             bootstrapMethodHandle.getName(), bootstrapMethodHandle.getDesc(), bootstrapMethodHandle.isInterface()),

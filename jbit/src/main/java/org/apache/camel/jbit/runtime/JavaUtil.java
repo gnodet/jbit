@@ -16,21 +16,23 @@
  */
 package org.apache.camel.jbit.runtime;
 
+import java.util.AbstractList;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 @SuppressWarnings({"unused", "UnusedReturnValue"})
-public final class Collections {
+public final class JavaUtil {
 
-    private Collections() {
+    private JavaUtil() {
     }
 
-     @Substitute(clazz = List.class, method = "of", isStatic = true)
+    @Substitute(clazz = List.class, method = "of", isStatic = true)
     public static <E> List<E> java_util_List_of() {
         return immutableList();
     }
@@ -93,8 +95,7 @@ public final class Collections {
 
     @Substitute(clazz = List.class, method = "copyOf", isStatic = true)
     public static <E> List<E> java_util_List_copyOf(List<? extends E> list) {
-        // TODO
-        throw new UnsupportedOperationException();
+        return new ImmutableList<>(list.toArray(new Object[0]));
     }
 
     @Substitute(clazz = Set.class, method = "of", isStatic = true)
@@ -155,13 +156,12 @@ public final class Collections {
     @Substitute(clazz = Set.class, method = "of", isStatic = true)
     @SafeVarargs
     public static <E> Set<E> java_util_Set_of(E... elements) {
-        return immutableSet(elements);
+        return immutableSet((Object[]) elements);
     }
 
     @Substitute(clazz = Set.class, method = "copyOf", isStatic = true)
     public static <E> Set<E> java_util_Set_copyOf(Set<? extends E> list) {
-        // TODO
-        throw new UnsupportedOperationException();
+        return immutableSet(list.toArray(new Object[0]));
     }
 
     @Substitute(clazz = Map.class, method = "of", isStatic = true)
@@ -232,56 +232,248 @@ public final class Collections {
     @SafeVarargs
     @Substitute(clazz = Map.class, method = "ofEntries", isStatic = true)
     public static <K, V> Map<K, V> java_util_Map_ofEntries(Map.Entry<? extends K, ? extends V>... entries) {
-        // TODO
-        throw new UnsupportedOperationException();
+        if (entries.length == 0) { // implicit null check of entries array
+            @SuppressWarnings("unchecked")
+            Map<K,V> map = (Map<K,V>) ImmutableMap.EMPTY_MAP;
+            return map;
+        } else {
+            Object[] kva = new Object[entries.length << 1];
+            int a = 0;
+            for (Map.Entry<? extends K, ? extends V> entry : entries) {
+                // implicit null checks of each array slot
+                kva[a++] = entry.getKey();
+                kva[a++] = entry.getValue();
+            }
+            return new ImmutableMap<>(kva);
+        }
     }
 
     @Substitute(clazz = Map.class, method = "entry", isStatic = true)
     public static <K, V> Map.Entry<K, V> java_util_Map_entry(K k, V v) {
-        // TODO
-        throw new UnsupportedOperationException();
+        return new KeyValueHolder<>(k, v);
     }
 
+    @SuppressWarnings("unchecked")
     @Substitute(clazz = Map.class, method = "copyOf", isStatic = true)
     public static <K, V> Map<K, V> java_util_Map_copyOf(Map<? extends K, ? extends V> map) {
-        // TODO
-        throw new UnsupportedOperationException();
+        return (Map<K,V>) java_util_Map_ofEntries(map.entrySet().toArray(new Map.Entry[0]));
+    }
+
+    @Substitute(clazz = Arrays.class, method = "mismatch")
+    public static int java_util_Arrays_mismatch(byte[] a, int aFromIndex, int aToIndex,
+                                                byte[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        int length = Math.min(aLength, bLength);
+        int i = domismatch(a, aFromIndex, b, bFromIndex, length);
+        return (i < 0 && aLength != bLength) ? length : i;
+    }
+
+    private static void rangeCheck(int arrayLength, int fromIndex, int toIndex) {
+        if (fromIndex > toIndex) {
+            throw new IllegalArgumentException("fromIndex(" + fromIndex + ") > toIndex(" + toIndex + ")");
+        }
+        if (fromIndex < 0) {
+            throw new ArrayIndexOutOfBoundsException(fromIndex);
+        }
+        if (toIndex > arrayLength) {
+            throw new ArrayIndexOutOfBoundsException(toIndex);
+        }
+    }
+
+    private static int domismatch(byte[] a, int aFromIndex, byte[] b, int bFromIndex, int length) {
+        for (int i = 0; i < length; i++) {
+            if (a[aFromIndex + i] != b[bFromIndex + i])
+                return i;
+        }
+        return -1;
     }
 
     @SafeVarargs
-    @SuppressWarnings("Java9CollectionFactory")
+    @SuppressWarnings("unchecked")
     private static <E> List<E> immutableList(E... input) {
-        // TODO: fix that
         if (input.length == 0) {
-            return java.util.Collections.emptyList();
+            return (List<E>) ImmutableList.EMPTY_LIST;
         } else {
-            return java.util.Collections.unmodifiableList(Arrays.asList(input));
+            return new ImmutableList<>(input);
         }
     }
 
     @SafeVarargs
-    @SuppressWarnings("Java9CollectionFactory")
-    private static <E> Set<E> immutableSet(E... input) {
-        // TODO: fix that
+    @SuppressWarnings("unchecked")
+    private static <E> Set<E> immutableSet(Object... input) {
         if (input.length == 0) {
-            return java.util.Collections.emptySet();
+            return (Set<E>) ImmutableSet.EMPTY_SET;
         } else {
-            return java.util.Collections.unmodifiableSet(new HashSet<>(Arrays.asList(input)));
+            return new ImmutableSet<>(input);
         }
     }
 
     @SuppressWarnings("unchecked")
     private static <K, V> Map<K, V> immutableMap(Object... input) {
-        // TODO: fix that
-        Map<K, V> m = new HashMap<>();
-        for (int i = 0; i < input.length;) {
-            K k = Objects.requireNonNull((K) input[i++]);
-            V v = Objects.requireNonNull((V) input[i++]);
-            if (m.put(k, v) != null) {
-                throw new IllegalArgumentException("duplicate key: " + k);
-            }
+        if (input.length == 0) {
+            return (Map<K, V>) ImmutableMap.EMPTY_MAP;
+        } else {
+            return new ImmutableMap<>(input);
         }
-        return java.util.Collections.unmodifiableMap(m);
     }
+
+    static final class ImmutableList<E> extends AbstractList<E> {
+
+        static final ImmutableList<?> EMPTY_LIST = new ImmutableList<>(new Object[0]);
+
+        private Object[] table;
+
+        public ImmutableList(Object[] table) {
+            for (Object o : table) {
+                Objects.requireNonNull(o);
+            }
+            this.table = table;
+        }
+
+        @Override
+        public E get(int index) {
+            return (E) table[index];
+        }
+
+        @Override
+        public Iterator<E> iterator() {
+            return new Iterator<E>() {
+                int idx = 0;
+                @Override
+                public boolean hasNext() {
+                    return idx < table.length;
+                }
+
+                @Override
+                public E next() {
+                    E e = (E) table[idx];
+                    idx++;
+                    return e;
+                }
+            };
+        }
+
+        @Override
+        public int size() {
+            return table.length;
+        }
+    }
+
+    static final class ImmutableSet<E> extends AbstractSet<E> {
+        static final ImmutableSet<?> EMPTY_SET = new ImmutableSet<>(new Object[0]);
+        private Object[] table;
+
+        public ImmutableSet(Object[] table) {
+            for (Object o : table) {
+                Objects.requireNonNull(o);
+            }
+            this.table = table;
+        }
+
+        @Override
+        public Iterator<E> iterator() {
+            return new Iterator<E>() {
+                int idx = 0;
+                @Override
+                public boolean hasNext() {
+                    return idx < table.length;
+                }
+
+                @Override
+                public E next() {
+                    E e = (E) table[idx];
+                    idx++;
+                    return e;
+                }
+            };
+        }
+
+        @Override
+        public int size() {
+            return table.length;
+        }
+    }
+
+    static final class KeyValueHolder<K,V> implements Map.Entry<K,V> {
+        final K key;
+        final V value;
+        KeyValueHolder(K k, V v) {
+            key = Objects.requireNonNull(k);
+            value = Objects.requireNonNull(v);
+        }
+        @Override
+        public K getKey() {
+            return key;
+        }
+        @Override
+        public V getValue() {
+            return value;
+        }
+        @Override
+        public V setValue(V value) {
+            throw new UnsupportedOperationException("not supported");
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof Map.Entry))
+                return false;
+            Map.Entry<?,?> e = (Map.Entry<?,?>)o;
+            return key.equals(e.getKey()) && value.equals(e.getValue());
+        }
+        @Override
+        public int hashCode() {
+            return key.hashCode() ^ value.hashCode();
+        }
+        @Override
+        public String toString() {
+            return key + "=" + value;
+        }
+    }
+
+    static class ImmutableMap<K, V> extends AbstractMap<K, V> {
+        static final ImmutableMap<?, ?> EMPTY_MAP = new ImmutableMap<>(new Object[0]);
+
+        private Object[] table;
+        ImmutableMap(Object[] kva) {
+            for (Object o : kva) {
+                Objects.requireNonNull(o);
+            }
+            table = kva;
+        }
+
+        @Override
+        public Set<Entry<K, V>> entrySet() {
+            return new AbstractSet<Entry<K, V>>() {
+                @Override
+                public int size() {
+                    return ImmutableMap.this.table.length / 2;
+                }
+
+                @Override
+                public Iterator<Entry<K,V>> iterator() {
+                    return new Iterator<Entry<K,V>>() {
+                        private int idx = 0;
+                        @Override
+                        public boolean hasNext() {
+                            return idx * 2 < table.length;
+                        }
+                        @Override
+                        public Entry<K, V> next() {
+                            Entry<K, V> e = new KeyValueHolder<>((K) table[idx * 2], (V) table[idx * 2 + 1]);
+                            idx++;
+                            return e;
+                        }
+                    };
+                }
+            };
+        }
+
+    }
+
+
 
 }

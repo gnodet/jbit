@@ -16,6 +16,17 @@
  */
 package org.apache.camel.jbit.example;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +69,26 @@ public class Example {
         };
     }
 
-    public static void main(String[] args) {
+    private static void testIo() throws IOException {
+        InputStream.nullInputStream().read();
+        OutputStream.nullOutputStream().write(0);
+        Reader.nullReader().read();
+        Writer.nullWriter().write(' ');
+        new ByteArrayInputStream("a string".getBytes()).transferTo(new ByteArrayOutputStream());
+
+        Path target = Paths.get("target");
+        Files.createDirectories(target);
+        Path temp = Files.createTempFile(target, null, null);
+        Files.writeString(temp, "Hello world!\n");
+        try (InputStream is = Files.newInputStream(temp)) {
+            is.transferTo(new ByteArrayOutputStream());
+        }
+        try (InputStream is = new FileInputStream(temp.toFile())) {
+            is.transferTo(new ByteArrayOutputStream());
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
         System.out.println("Running on " + System.getProperty("java.version"));
         Example x = new Example();
         System.out.println(x.testConcat1(TimeUnit.SECONDS));
@@ -67,6 +97,7 @@ public class Example {
         System.out.println(x.testBlank("ff"));
         System.out.println(x.testVar());
         System.out.println(x.testSwitchExpression(TimeUnit.SECONDS));
+        testIo();
     }
 
 }

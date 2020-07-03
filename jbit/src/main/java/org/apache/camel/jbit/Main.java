@@ -19,6 +19,7 @@ package org.apache.camel.jbit;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -33,6 +34,9 @@ import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 
 import org.apache.camel.jbit.translate.Translator;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.Opcodes;
 
 public class Main {
 
@@ -69,11 +73,10 @@ public class Main {
                     out.write(data);
                     out.closeEntry();
                 }
-                addLoadedClass(out, org.apache.camel.jbit.runtime.Runtime.class);
-                addLoadedClass(out, org.apache.camel.jbit.runtime.Collections.class);
+                for (Class<?> cl : Translator.SUBSTITUTION_CLASSES) {
+                    addLoadedClass(out, cl);
+                }
                 addLoadedClass(out, org.apache.camel.jbit.runtime.StringConcatFactory.class);
-                addLoadedClass(out, org.apache.camel.jbit.runtime.StringConcatFactory.StringConcatException.class);
-                addLoadedClass(out, org.apache.camel.jbit.runtime.StringConcatFactory.RecipeElement.class);
             }
         }
     }
@@ -90,11 +93,27 @@ public class Main {
         String fileName = clazz.getName().replace('.', '/') + ".class";
         JarEntry entry = new JarEntry(fileName);
         out.putNextEntry(entry);
+        byte[] data;
         try (InputStream in = clazz.getClassLoader().getResourceAsStream(fileName)) {
-            byte[] data = Translator.transform(in);
+            data = Translator.transform(in);
             out.write(data);
         }
         out.closeEntry();
+        ClassReader r = new ClassReader(data);
+        r.accept(new ClassVisitor(Opcodes.ASM8) {
+            @Override
+            public void visitInnerClass(String name, String outerName, String innerName, int access) {
+                try {
+                    String cn = name.replace('/', '.');
+                    Class<?> cl = clazz.getClassLoader().loadClass(cn);
+                    if (cl.getEnclosingClass() == clazz) {
+                        addLoadedClass(out, cl);
+                    }
+                } catch (ClassNotFoundException | IOException e) {
+                    throw new IOError(e);
+                }
+            }
+        }, 0);
     }
 
 }
