@@ -46,8 +46,17 @@ public class Translator {
             JavaUtilStream.class
     );
     private static final List<Substitution> SUBSTITUTIONS = Substitution.findSubstitutions(SUBSTITUTION_CLASSES);
+    private static final Translator TRANSLATOR = new Translator(SUBSTITUTIONS, false);
     private static final String STRING_CONCAT_FACTORY = "java/lang/invoke/StringConcatFactory";
     private static final String METHOD_HANDLES = "java/lang/invoke/MethodHandles";
+
+    private final List<Substitution> substitutions;
+    private final boolean force;
+
+    public Translator(List<Substitution> substitutions, boolean force) {
+        this.substitutions = substitutions;
+        this.force = force;
+    }
 
     /**
      * Translates a JDK 11 or JDK 14 class into a JDK 8 compatible class
@@ -55,16 +64,24 @@ public class Translator {
      * @return the translated binary class
      */
     public static byte[] transform(byte[] classData) {
+        return TRANSLATOR.doTransform(classData);
+    }
+
+    public static byte[] transform(InputStream input) throws IOException {
+        return TRANSLATOR.doTransform(input);
+    }
+
+    public byte[] doTransform(byte[] classData) {
         ClassReader reader = new ClassReader(classData);
         return doTransform(reader);
     }
 
-    public static byte[] transform(InputStream input) throws IOException {
+    public byte[] doTransform(InputStream input) throws IOException {
         ClassReader reader = new ClassReader(input);
         return doTransform(reader);
     }
 
-    private static byte[] doTransform(ClassReader reader) {
+    private byte[] doTransform(ClassReader reader) {
         Collection<String> classes = new ArrayList<>();
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         ClassVisitor visitor = new ClassVisitor(Opcodes.ASM8, writer) {
@@ -85,7 +102,7 @@ public class Translator {
 
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                if (version <= Opcodes.V1_8) {
+                if (version <= Opcodes.V1_8 && !force) {
                     return super.visitMethod(access, name, descriptor, signature, exceptions);
                 }
                 MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
@@ -97,7 +114,7 @@ public class Translator {
                             final String name,
                             final String descriptor,
                             final boolean isInterface) {
-                        Substitution substitution = SUBSTITUTIONS.stream()
+                        Substitution substitution = substitutions.stream()
                                 .filter(s -> s.matches(owner, name, descriptor))
                                 .findAny().orElse(null);
                         if (substitution != null) {
